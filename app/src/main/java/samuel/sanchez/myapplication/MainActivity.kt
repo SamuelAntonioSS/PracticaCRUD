@@ -1,5 +1,6 @@
 package samuel.sanchez.myapplication
 
+import RecyclerViewHelpers.Adaptador
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -9,10 +10,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import modelo.ClaseConexion
+import modelo.ListaProductos
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +42,40 @@ class MainActivity : AppCompatActivity() {
 
         //2-Crea un adaptador
 
+        ////Funciòn para mostrar datos
+        fun obtenerDatos(): List<ListaProductos>{
+            val objConexion = ClaseConexion().cadenaConexion()
+
+            val statement = objConexion?.createStatement()
+            val resultSet = statement?.executeQuery("select * from tbProductos1")!!
+
+            val listadoProductos = mutableListOf<ListaProductos>()
+
+            //Recorrer todos los datos que me trajo el select
+
+            while (resultSet.next()){
+                val uuid = resultSet.getString("uuid")
+                val nombre = resultSet.getString("nombreProducto")
+                val precio = resultSet.getInt("precio")
+                val cantidad = resultSet.getInt("cantidad")
+                val producto = ListaProductos(uuid, nombre, precio, cantidad)
+                listadoProductos.add(producto)
+            }
+            return listadoProductos
+        }
+
+        //Ejecutamos la funcion
+        CoroutineScope(Dispatchers.IO).launch {
+            val ejecutarFuncion = obtenerDatos()
+
+            withContext(Dispatchers.Main){
+                //Asigno el adaptador mi RecyclerView
+                //(Uno mi adaptador con el RecyclerView)
+                val miAdaptador = Adaptador(ejecutarFuncion)
+                rcvDatos.adapter = miAdaptador
+            }
+        }
+
 
 
 
@@ -47,11 +86,22 @@ class MainActivity : AppCompatActivity() {
                 val objConexion = ClaseConexion().cadenaConexion()
 
                 //2- Crear una variable que se igual a una PrepareStatement
-                val addProduct = objConexion?.prepareStatement("insert into tbProductos1 values(?, ?, ?)")!!
-                addProduct.setString(1,txtNombre.text.toString())
-                addProduct.setInt(2,txtPrecio.text.toString().toInt())
-                addProduct.setInt(3, txtCantidad.text.toString().toInt())
+                val addProduct = objConexion?.prepareStatement("insert into tbProductos1(uuid, nombreProducto, precio, cantidad) values(?, ?, ?,?)")!!
+                addProduct.setString(1, UUID.randomUUID().toString())
+                addProduct.setString(2,txtNombre.text.toString())
+                addProduct.setInt(3,txtPrecio.text.toString().toInt())
+                addProduct.setInt(4, txtCantidad.text.toString().toInt())
+
+
                 addProduct.executeUpdate()
+
+                val nuevosProductos = obtenerDatos()
+
+                //Creo una cortina que actualice el listado
+                withContext(Dispatchers.Main){
+                    (rcvDatos.adapter as? Adaptador)?.actualizarRecyclerView(nuevosProductos)
+                }
+
             }
 
 
